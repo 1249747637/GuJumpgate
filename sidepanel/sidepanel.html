@@ -417,6 +417,7 @@
                   <option value="unused">0 次</option>
                   <option value="used">已使用</option>
                   <option value="error">异常</option>
+                  <option value="disabled">已禁用</option>
                 </select>
               </div>
               <div id="hosted-sms-pool-list" class="luckmail-list"></div>
@@ -713,6 +714,17 @@
             <span class="setting-caption setting-caption-left">清 Cookies</span>
             <label class="toggle-switch" for="input-step6-cookie-cleanup-enabled">
               <input type="checkbox" id="input-step6-cookie-cleanup-enabled" />
+              <span class="toggle-switch-track" aria-hidden="true">
+                <span class="toggle-switch-thumb"></span>
+              </span>
+            </label>
+          </div>
+          <div class="setting-group setting-group-primary step6-force-import-setting"
+            title="如果第六步实在错误，仍执行第七步。">
+            <span class="setting-caption setting-caption-left">强行导入</span>
+            <label class="toggle-switch" for="input-step6-force-import-enabled"
+              title="如果第六步实在错误，仍执行第七步。">
+              <input type="checkbox" id="input-step6-force-import-enabled" />
               <span class="toggle-switch-track" aria-hidden="true">
                 <span class="toggle-switch-thumb"></span>
               </span>

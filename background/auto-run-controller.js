@@ -36,6 +36,7 @@
       launchAutoRunTimerPlan,
       normalizeAutoRunFallbackThreadIntervalMinutes,
       persistAutoRunTimerPlan,
+      onAutoRunRoundComplete,
       resetState,
       runAutoSequenceFromNode,
       runtime,
@@ -405,6 +406,30 @@
       });
       runtime.set({ autoRunActive: false });
       return true;
+    }
+
+    async function notifyAutoRunRoundComplete(roundSummary = {}, context = {}) {
+      if (!['success', 'failed'].includes(String(roundSummary?.status || '').trim().toLowerCase())) {
+        return;
+      }
+      if (typeof onAutoRunRoundComplete !== 'function') {
+        return;
+      }
+
+      try {
+        await onAutoRunRoundComplete({
+          ...context,
+          status: roundSummary.status,
+          finalFailureReason: roundSummary.finalFailureReason || '',
+          failureReasons: Array.isArray(roundSummary.failureReasons) ? [...roundSummary.failureReasons] : [],
+          attempts: roundSummary.attempts || 0,
+        });
+      } catch (error) {
+        await addLog(
+          `自动运行结束后轮转 Clash Verge 代理失败：${getErrorMessage(error) || '未知错误'}`,
+          'warn'
+        );
+      }
     }
 
     async function handleAutoRunLoopUnhandledError(error) {
@@ -1249,6 +1274,15 @@
             reuseExistingProgress = false;
             continueCurrentOnFirstAttempt = false;
           }
+        }
+
+        if (!parkedByTimer) {
+          await notifyAutoRunRoundComplete(roundSummary, {
+            targetRun,
+            totalRuns,
+            sessionId,
+            autoRunSessionId: runtime.get().autoRunSessionId,
+          });
         }
 
         if (stoppedEarly || parkedByTimer) {

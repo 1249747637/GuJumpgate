@@ -31,6 +31,7 @@ importScripts(
   'flows/openai/mail-rules.js',
   'background/message-router.js',
   'background/verification-flow.js',
+  'background/clash-verge-controller.js',
   'background/auto-run-controller.js',
   'background/plus-success-session-upload.js',
   'background/tab-runtime.js',
@@ -1057,6 +1058,7 @@ const PERSISTED_SETTING_DEFAULTS = {
   autoStepDelaySeconds: null,
   step6Enabled: true,
   step6CookieCleanupEnabled: false,
+  step6ForceImportEnabled: false,
   phoneVerificationEnabled: false,
   phoneSignupReloginAfterBindEmailEnabled: false,
   phoneSmsReuseEnabled: DEFAULT_HERO_SMS_REUSE_ENABLED,
@@ -3075,11 +3077,18 @@ function normalizePersistentSettingValue(key, value) {
         const item = usage && typeof usage === 'object' && !Array.isArray(usage) ? usage : {};
         const legacyUsedCount = Number(item.usedAt) > 0 ? 1 : 0;
         const useCount = Math.max(0, Math.floor(Number(item.useCount ?? item.usageCount ?? legacyUsedCount) || 0));
+        const failureCount = Math.max(0, Math.floor(Number(item.failureCount ?? item.failCount ?? 0) || 0));
+        const disabledAt = Math.max(0, Number(item.disabledAt) || 0);
         return [String(key || '').trim(), {
           useCount,
           usedAt: Math.max(0, Number(item.usedAt) || 0),
           lastAttemptAt: Math.max(0, Number(item.lastAttemptAt) || 0),
           lastError: String(item.lastError || '').trim(),
+          failureCount,
+          lastFailureAt: Math.max(0, Number(item.lastFailureAt) || 0),
+          disabled: Boolean(item.disabled || item.isDisabled || disabledAt > 0),
+          disabledAt,
+          disabledReason: String(item.disabledReason || '').trim(),
         }];
       }).filter(([key]) => Boolean(key)));
     case 'paypalEmail':
@@ -3205,6 +3214,7 @@ function normalizePersistentSettingValue(key, value) {
     case 'step6Enabled':
       return value !== false;
     case 'step6CookieCleanupEnabled':
+    case 'step6ForceImportEnabled':
     case 'phoneVerificationEnabled':
     case 'phoneSignupReloginAfterBindEmailEnabled':
     case 'phoneSmsReuseEnabled':
@@ -11662,6 +11672,14 @@ async function shouldSkipStep6NodeExecution(nodeId, state = {}) {
   return false;
 }
 
+async function shouldForceContinueAfterStep6NodeError(nodeId, state = {}) {
+  if (state?.step6ForceImportEnabled === true) {
+    const step = getStepIdByNodeIdForState(nodeId, state);
+    return Number(step) === 6;
+  }
+  return false;
+}
+
 async function executeNode(nodeId, options = {}) {
   const { deferRetryableTransportError = false } = options;
   const normalizedNodeId = String(nodeId || '').trim();
@@ -12540,6 +12558,10 @@ async function refreshGpcApiKeyBalance(state = {}, options = {}) {
 }
 
 const refreshGpcCardBalance = refreshGpcApiKeyBalance;
+const CLASH_VERGE_ROTATION_CONTROLLER_URL = 'http://127.0.0.1:9097';
+const CLASH_VERGE_ROTATION_API_KEY = 'set-your-secret';
+const CLASH_VERGE_ROTATION_GROUP_NAME = '711链式手动选择';
+const clashVergeController = self.MultiPageBackgroundClashVergeController?.createClashVergeController({});
 
 const autoRunController = self.MultiPageBackgroundAutoRunController?.createAutoRunController({
   addLog,
@@ -12575,6 +12597,44 @@ const autoRunController = self.MultiPageBackgroundAutoRunController?.createAutoR
   isStopError,
   launchAutoRunTimerPlan,
   normalizeAutoRunFallbackThreadIntervalMinutes,
+  onAutoRunRoundComplete: async (payload = {}) => {
+    const roundStatus = String(payload?.status || '').trim().toLowerCase();
+    if (!['success', 'failed'].includes(roundStatus)) {
+      return;
+    }
+    if (!clashVergeController?.rotateNextProxyInGroup) {
+      return;
+    }
+
+    const result = await clashVergeController.rotateNextProxyInGroup({
+      controllerUrl: CLASH_VERGE_ROTATION_CONTROLLER_URL,
+      apiKey: CLASH_VERGE_ROTATION_API_KEY,
+      groupName: CLASH_VERGE_ROTATION_GROUP_NAME,
+    });
+
+    if (result?.rotated) {
+      await addLog(
+        `Clash Verge 已轮转代理组 ${CLASH_VERGE_ROTATION_GROUP_NAME}，切换到 ${result.nextProxy}。`,
+        'info'
+      );
+      return;
+    }
+
+    const reason = result?.reason === 'not_enough_proxies'
+      ? '代理组可轮转节点不足'
+      : (result?.reason === 'missing_config'
+        ? '控制器配置不完整'
+        : '代理切换请求未成功');
+    const detail = result?.error?.status
+      ? `HTTP ${result.error.status}`
+      : (result?.error?.payload?.message || result?.error?.payload?.error || result?.error?.payload?.raw || '');
+    await addLog(
+      detail
+        ? `Clash Verge 轮转代理组 ${CLASH_VERGE_ROTATION_GROUP_NAME} 失败：${reason}，${detail}`
+        : `Clash Verge 轮转代理组 ${CLASH_VERGE_ROTATION_GROUP_NAME} 失败：${reason}`,
+      'warn'
+    );
+  },
   onAutoRunRoundSuccess: LEGACY_IP_PROXY_FEATURE_ENABLED
     ? ((payload = {}) => maybeSwitchIpProxyAfterAutoRunRoundSuccess(payload))
     : null,
@@ -13228,6 +13288,16 @@ async function runAutoSequenceFromNodeGraph(startNodeId, context = {}) {
 
       const step = getDisplayStepForNode(nodeId, latestState);
       const nodeExecutionKey = getNodeExecutionKey(nodeId, latestState);
+      if (await shouldForceContinueAfterStep6NodeError(nodeId, latestState)) {
+        await setNodeStatus(nodeId, 'skipped');
+        await addLog(
+          `节点 ${getNodeLabel(nodeId, latestState)}：第六步执行失败，但强行导入已开启，已跳过第六步并继续执行第七步。原因：${getErrorMessage(err)}`,
+          'warn',
+          { nodeId }
+        );
+        nodeIndex += 1;
+        continue;
+      }
       const isGpcCheckoutStep = normalizePlusPaymentMethodForRun(latestState?.plusPaymentMethod) === plusPaymentMethodGpcHelper
         || String(latestState?.plusCheckoutSource || '').trim() === plusPaymentMethodGpcHelper;
       if (isPlusCheckoutRestartStep(step, nodeExecutionKey, latestState)

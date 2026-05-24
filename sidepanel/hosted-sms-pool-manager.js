@@ -115,11 +115,18 @@
         const usage = item && typeof item === 'object' && !Array.isArray(item) ? item : {};
         const legacyUsedCount = Number(usage.usedAt) > 0 ? 1 : 0;
         const useCount = Math.max(0, Math.floor(Number(usage.useCount ?? usage.usageCount ?? legacyUsedCount) || 0));
+        const failureCount = Math.max(0, Math.floor(Number(usage.failureCount ?? usage.failCount ?? 0) || 0));
+        const disabledAt = Math.max(0, Number(usage.disabledAt) || 0);
         return [normalizeText(key), {
           useCount,
           usedAt: Math.max(0, Number(usage.usedAt) || 0),
           lastAttemptAt: Math.max(0, Number(usage.lastAttemptAt) || 0),
           lastError: normalizeText(usage.lastError),
+          failureCount,
+          lastFailureAt: Math.max(0, Number(usage.lastFailureAt) || 0),
+          disabled: Boolean(usage.disabled || usage.isDisabled || disabledAt > 0),
+          disabledAt,
+          disabledReason: normalizeText(usage.disabledReason),
         }];
       }).filter(([key]) => Boolean(key)));
     }
@@ -141,6 +148,11 @@
           used: Math.max(0, Math.floor(Number(itemUsage.useCount) || 0)) > 0,
           lastAttemptAt: Math.max(0, Number(itemUsage.lastAttemptAt) || 0),
           lastError: normalizeText(itemUsage.lastError),
+          failureCount: Math.max(0, Math.floor(Number(itemUsage.failureCount) || 0)),
+          lastFailureAt: Math.max(0, Number(itemUsage.lastFailureAt) || 0),
+          disabled: Boolean(itemUsage.disabled),
+          disabledAt: Math.max(0, Number(itemUsage.disabledAt) || 0),
+          disabledReason: normalizeText(itemUsage.disabledReason),
         };
       });
     }
@@ -149,11 +161,12 @@
       const normalizedSearch = normalizeText(searchTerm).toLowerCase();
       return getEntriesWithState(entries).filter((entry) => {
         const matchesFilter = (() => {
-          switch (filterMode) {
+        switch (filterMode) {
             case 'current': return Boolean(entry.current);
             case 'used': return Boolean(entry.used);
             case 'unused': return !entry.used;
             case 'error': return Boolean(entry.lastError);
+            case 'disabled': return Boolean(entry.disabled);
             default: return true;
           }
         })();
@@ -166,11 +179,12 @@
         return [
           entry.phone,
           entry.verificationUrl,
-          entry.current ? 'current 当前' : '',
-          entry.used ? 'used 已用' : 'unused 未用',
-          entry.lastError ? `error 异常 ${entry.lastError}` : '',
-        ].join(' ').toLowerCase().includes(normalizedSearch);
-      });
+        entry.current ? 'current 当前' : '',
+        entry.used ? 'used 已用' : 'unused 未用',
+        entry.disabled ? 'disabled 已禁用' : '',
+        entry.lastError ? `error 异常 ${entry.lastError}` : '',
+      ].join(' ').toLowerCase().includes(normalizedSearch);
+    });
     }
 
     function setLoading(nextLoading, summary = '') {
@@ -218,8 +232,10 @@
       }
 
       const usedCount = entriesWithState.filter((entry) => entry.useCount > 0).length;
+      const disabledCount = entriesWithState.filter((entry) => entry.disabled).length;
       const totalUseCount = entriesWithState.reduce((sum, entry) => sum + Math.max(0, Number(entry.useCount) || 0), 0);
-      dom.hostedSmsPoolSummary.textContent = `已加载 ${entriesWithState.length} 个号码，${usedCount} 个有使用记录，累计使用 ${totalUseCount} 次。`;
+      const totalFailureCount = entriesWithState.reduce((sum, entry) => sum + Math.max(0, Number(entry.failureCount) || 0), 0);
+      dom.hostedSmsPoolSummary.textContent = `已加载 ${entriesWithState.length} 个号码，${usedCount} 个有使用记录，${disabledCount} 个已禁用，累计使用 ${totalUseCount} 次，累计失败 ${totalFailureCount} 次。`;
 
       const visibleEntries = getFilteredEntries(renderedEntries);
       if (!visibleEntries.length) {
@@ -252,6 +268,7 @@
             <div class="luckmail-item-meta">
               ${entry.current ? '<span class="luckmail-tag current">当前</span>' : ''}
               <span class="luckmail-tag active">使用 ${Math.max(0, Number(entry.useCount) || 0)} 次</span>
+              <span class="luckmail-tag ${entry.disabled ? 'disabled' : 'active'}">${entry.disabled ? '已禁用' : `失败 ${Math.max(0, Number(entry.failureCount) || 0)} 次`}</span>
             </div>
           </div>
           <div class="luckmail-item-actions">

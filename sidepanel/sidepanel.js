@@ -430,6 +430,7 @@ const inputAutoRunRetryPaypalCallback = document.getElementById('input-auto-run-
 const inputAutoSkipFailuresThreadIntervalMinutes = document.getElementById('input-auto-skip-failures-thread-interval-minutes');
 const inputStep6Enabled = document.getElementById('input-step6-enabled');
 const inputStep6CookieCleanupEnabled = document.getElementById('input-step6-cookie-cleanup-enabled');
+const inputStep6ForceImportEnabled = document.getElementById('input-step6-force-import-enabled');
 const inputAutoDelayEnabled = document.getElementById('input-auto-delay-enabled');
 const inputAutoDelayMinutes = document.getElementById('input-auto-delay-minutes');
 const inputAutoStepDelaySeconds = document.getElementById('input-auto-step-delay-seconds');
@@ -4463,6 +4464,9 @@ function collectSettingsPayload() {
       : true,
     step6CookieCleanupEnabled: typeof inputStep6CookieCleanupEnabled !== 'undefined' && inputStep6CookieCleanupEnabled
       ? Boolean(inputStep6CookieCleanupEnabled.checked)
+      : false,
+    step6ForceImportEnabled: typeof inputStep6ForceImportEnabled !== 'undefined' && inputStep6ForceImportEnabled
+      ? Boolean(inputStep6ForceImportEnabled.checked)
       : false,
     autoRunDelayEnabled: inputAutoDelayEnabled.checked,
     autoRunDelayMinutes: normalizeAutoDelayMinutes(inputAutoDelayMinutes.value),
@@ -10219,6 +10223,9 @@ function applySettingsState(state) {
   if (typeof inputStep6CookieCleanupEnabled !== 'undefined' && inputStep6CookieCleanupEnabled) {
     inputStep6CookieCleanupEnabled.checked = Boolean(state?.step6CookieCleanupEnabled);
   }
+  if (typeof inputStep6ForceImportEnabled !== 'undefined' && inputStep6ForceImportEnabled) {
+    inputStep6ForceImportEnabled.checked = Boolean(state?.step6ForceImportEnabled);
+  }
   inputAutoDelayEnabled.checked = Boolean(state?.autoRunDelayEnabled);
   inputAutoDelayMinutes.value = String(normalizeAutoDelayMinutes(state?.autoRunDelayMinutes));
   inputAutoStepDelaySeconds.value = formatAutoStepDelayInputValue(state?.autoStepDelaySeconds);
@@ -15249,6 +15256,11 @@ inputStep6CookieCleanupEnabled?.addEventListener('change', () => {
   saveSettings({ silent: true }).catch(() => { });
 });
 
+inputStep6ForceImportEnabled?.addEventListener('change', () => {
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => { });
+});
+
 inputAutoDelayMinutes.addEventListener('input', () => {
   markSettingsDirty(true);
   scheduleSettingsAutoSave();
@@ -16857,6 +16869,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         && inputStep6CookieCleanupEnabled
       ) {
         inputStep6CookieCleanupEnabled.checked = Boolean(message.payload.step6CookieCleanupEnabled);
+      }
+      if (
+        message.payload.step6ForceImportEnabled !== undefined
+        && typeof inputStep6ForceImportEnabled !== 'undefined'
+        && inputStep6ForceImportEnabled
+      ) {
+        inputStep6ForceImportEnabled.checked = Boolean(message.payload.step6ForceImportEnabled);
       }
       if (message.payload.autoRunDelayMinutes !== undefined) {
         inputAutoDelayMinutes.value = String(normalizeAutoDelayMinutes(message.payload.autoRunDelayMinutes));

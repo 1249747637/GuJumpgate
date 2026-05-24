@@ -32,6 +32,7 @@
   const HOSTED_CHECKOUT_SMS_POOL_SEPARATOR = '----';
   const HOSTED_CHECKOUT_SAMPLE_PHONE = '1234567890';
   const HOSTED_CHECKOUT_SAMPLE_VERIFICATION_URL = 'https://mail.test.com/api/text-relay/eca_tr_xxxxxxxxx';
+  const HOSTED_CHECKOUT_SMS_POOL_FAILURE_DISABLE_THRESHOLD = 3;
   const HOSTED_CHECKOUT_GENERIC_ERROR_PREFIX = 'HOSTED_CHECKOUT_GENERIC_ERROR::';
   const HOSTED_CHECKOUT_VERIFICATION_RESEND_LIMIT_PREFIX = 'HOSTED_CHECKOUT_VERIFICATION_RESEND_LIMIT::';
   const HOSTED_CHECKOUT_VERIFICATION_RESEND_MAX_ATTEMPTS = 1;
@@ -850,11 +851,19 @@ function FindProxyForURL(url, host) {
         const usage = item && typeof item === 'object' && !Array.isArray(item) ? item : {};
         const legacyUsedCount = Number(usage.usedAt) > 0 ? 1 : 0;
         const useCount = Math.max(0, Math.floor(Number(usage.useCount ?? usage.usageCount ?? legacyUsedCount) || 0));
+        const failureCount = Math.max(0, Math.floor(Number(usage.failureCount ?? usage.failCount ?? 0) || 0));
+        const disabledAt = Math.max(0, Number(usage.disabledAt) || 0);
+        const disabled = Boolean(usage.disabled || usage.isDisabled || disabledAt > 0);
         return [String(key || '').trim(), {
           useCount,
           usedAt: Math.max(0, Number(usage.usedAt) || 0),
           lastAttemptAt: Math.max(0, Number(usage.lastAttemptAt) || 0),
           lastError: String(usage.lastError || '').trim(),
+          failureCount,
+          lastFailureAt: Math.max(0, Number(usage.lastFailureAt) || 0),
+          disabled,
+          disabledAt,
+          disabledReason: String(usage.disabledReason || '').trim(),
         }];
       }).filter(([key]) => Boolean(key)));
     }
@@ -894,16 +903,21 @@ function FindProxyForURL(url, host) {
       }
       const normalizedUsage = normalizeHostedCheckoutSmsPoolUsage(usage);
       return entries
+        .filter((entry) => !Boolean(normalizedUsage[entry.key]?.disabled))
         .map((entry, index) => {
           const itemUsage = normalizedUsage[entry.key] || {};
           return {
             ...entry,
             index: Number.isFinite(entry.index) ? entry.index : index,
             useCount: Math.max(0, Math.floor(Number(itemUsage.useCount) || 0)),
+            failureCount: Math.max(0, Math.floor(Number(itemUsage.failureCount) || 0)),
             usedAt: Math.max(0, Number(itemUsage.usedAt) || 0),
           };
         })
         .sort((left, right) => {
+          if (left.failureCount !== right.failureCount) {
+            return left.failureCount - right.failureCount;
+          }
           if (left.useCount !== right.useCount) {
             return left.useCount - right.useCount;
           }
@@ -918,6 +932,7 @@ function FindProxyForURL(url, host) {
       state = {},
       stored = {},
       poolEntries = [],
+      poolUsage = {},
       selectedSmsEntry = null,
     } = {}) {
       return {
@@ -930,6 +945,8 @@ function FindProxyForURL(url, host) {
         effectiveHostedSmsPoolEntries: Array.isArray(poolEntries) ? poolEntries.length : 0,
         selectedHostedSmsPoolPhone: String(selectedSmsEntry?.phone || '').trim(),
         selectedHostedSmsPoolVerificationUrl: String(selectedSmsEntry?.verificationUrl || '').trim(),
+        selectedHostedSmsPoolFailureCount: Math.max(0, Number(poolUsage?.[selectedSmsEntry?.key || '']?.failureCount) || 0),
+        selectedHostedSmsPoolDisabled: Boolean(poolUsage?.[selectedSmsEntry?.key || '']?.disabled),
       };
     }
 
@@ -962,6 +979,10 @@ function FindProxyForURL(url, host) {
       const now = Date.now();
       const incrementUseCount = Boolean(options.incrementUseCount);
       const success = options.success === true;
+      const previousFailureCount = Math.max(0, Number(previous.failureCount) || 0);
+      const nextFailureCount = success ? previousFailureCount : previousFailureCount + 1;
+      const shouldDisable = !success && nextFailureCount >= HOSTED_CHECKOUT_SMS_POOL_FAILURE_DISABLE_THRESHOLD;
+      const alreadyDisabled = Boolean(previous.disabled);
       const nextUsage = {
         ...usage,
         [normalizedEntry.key]: {
@@ -973,6 +994,15 @@ function FindProxyForURL(url, host) {
             : Math.max(0, Number(previous.usedAt) || 0),
           lastAttemptAt: now,
           lastError: success ? '' : String(options.error || '').trim(),
+          failureCount: nextFailureCount,
+          lastFailureAt: success ? Math.max(0, Number(previous.lastFailureAt) || 0) : now,
+          disabled: alreadyDisabled || shouldDisable,
+          disabledAt: alreadyDisabled
+            ? Math.max(0, Number(previous.disabledAt) || 0)
+            : (shouldDisable ? now : 0),
+          disabledReason: alreadyDisabled
+            ? String(previous.disabledReason || '').trim()
+            : (shouldDisable ? String(options.error || '').trim() || '达到失败禁用阈值' : String(previous.disabledReason || '').trim()),
         },
       };
       await applyHostedCheckoutRuntimePatch({
@@ -1008,8 +1038,14 @@ function FindProxyForURL(url, host) {
         || {}
       );
       let selectedSmsEntry = normalizeHostedCheckoutCurrentSmsEntry(state?.hostedCheckoutCurrentSmsEntry, poolEntries);
+      if (selectedSmsEntry && poolUsage[selectedSmsEntry.key]?.disabled) {
+        selectedSmsEntry = null;
+      }
       if (!selectedSmsEntry && ensureCurrentSmsEntry && poolEntries.length > 0) {
         selectedSmsEntry = chooseHostedCheckoutSmsPoolEntry(poolEntries, poolUsage);
+        if (!selectedSmsEntry) {
+          throw new Error('PayPal 接码池暂无可用号码，当前号码已全部禁用。');
+        }
         if (selectedSmsEntry) {
           const nextUsage = await updateHostedCheckoutPoolUsage(selectedSmsEntry, {
             incrementUseCount: true,
@@ -1054,6 +1090,7 @@ function FindProxyForURL(url, host) {
         state,
         stored,
         poolEntries,
+        poolUsage,
         selectedSmsEntry,
       });
       return {
@@ -1355,12 +1392,6 @@ function FindProxyForURL(url, host) {
       }
       const code = extractHostedCheckoutVerificationCode(payload);
       if (!code) {
-        if (runtimeConfig.hostedCheckoutUsesSmsPool && runtimeConfig.hostedCheckoutCurrentSmsEntry) {
-          await updateHostedCheckoutPoolUsage(runtimeConfig.hostedCheckoutCurrentSmsEntry, {
-            success: false,
-            error: 'hosted checkout 验证码接口暂未返回有效验证码。',
-          });
-        }
         throw new Error('hosted checkout 验证码接口暂未返回有效验证码。');
       }
       if (runtimeConfig.hostedCheckoutUsesSmsPool && runtimeConfig.hostedCheckoutCurrentSmsEntry) {
@@ -1799,11 +1830,11 @@ function FindProxyForURL(url, host) {
       void runHostedCheckoutAutomation(tabId, completionPayload)
         .catch(async (error) => {
           const message = error?.message || String(error || 'hosted checkout automation failed');
-          if (isHostedCheckoutNonFreeTrialFailure(error)) {
-            const latestState = typeof getState === 'function'
-              ? await getState().catch(() => ({}))
-              : {};
-            const shouldRetryNonFreeTrial = Boolean(latestState?.autoRunRetryNonFreeTrial);
+        if (isHostedCheckoutNonFreeTrialFailure(error)) {
+          const latestState = typeof getState === 'function'
+            ? await getState().catch(() => ({}))
+            : {};
+          const shouldRetryNonFreeTrial = Boolean(latestState?.autoRunRetryNonFreeTrial);
             const stopReason = normalizeNonFreeTrialLogMessage(message, {
               willRetry: shouldRetryNonFreeTrial,
             });
@@ -1820,6 +1851,18 @@ function FindProxyForURL(url, host) {
             if (typeof requestStop === 'function') {
               await requestStop({ logMessage: false });
               return;
+            }
+          }
+          if (String(message || '').trim() !== '流程已被用户停止。') {
+            const latestState = typeof getState === 'function'
+              ? await getState().catch(() => ({}))
+              : {};
+            const currentSmsEntry = normalizeHostedCheckoutCurrentSmsEntry(latestState?.hostedCheckoutCurrentSmsEntry);
+            if (currentSmsEntry && latestState?.hostedCheckoutSmsPoolUsage) {
+              await updateHostedCheckoutPoolUsage(currentSmsEntry, {
+                success: false,
+                error: message,
+              });
             }
           }
           await addLog(`步骤 6：hosted checkout 自动化失败：${message}`, 'error');
