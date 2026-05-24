@@ -1055,6 +1055,7 @@ const PERSISTED_SETTING_DEFAULTS = {
   operationDelayEnabled: true,
   autoRunDelayMinutes: 30,
   autoStepDelaySeconds: null,
+  step6Enabled: true,
   step6CookieCleanupEnabled: false,
   phoneVerificationEnabled: false,
   phoneSignupReloginAfterBindEmailEnabled: false,
@@ -3201,6 +3202,8 @@ function normalizePersistentSettingValue(key, value) {
       return Boolean(value);
     case 'operationDelayEnabled':
       return typeof value === 'boolean' ? value : true;
+    case 'step6Enabled':
+      return value !== false;
     case 'step6CookieCleanupEnabled':
     case 'phoneVerificationEnabled':
     case 'phoneSignupReloginAfterBindEmailEnabled':
@@ -11651,6 +11654,14 @@ const STEP_FETCH_NETWORK_RETRY_POLICIES = new Map([
   [9, { maxAttempts: 3, cooldownMs: 12000 }],
 ]);
 
+async function shouldSkipStep6NodeExecution(nodeId, state = {}) {
+  if (state?.step6Enabled === false) {
+    const step = getStepIdByNodeIdForState(nodeId, state);
+    return Number(step) === 6;
+  }
+  return false;
+}
+
 async function executeNode(nodeId, options = {}) {
   const { deferRetryableTransportError = false } = options;
   const normalizedNodeId = String(nodeId || '').trim();
@@ -11660,6 +11671,11 @@ async function executeNode(nodeId, options = {}) {
   console.log(LOG_PREFIX, `Executing node ${normalizedNodeId}`);
   let state = await getState();
   const step = getStepIdByNodeIdForState(normalizedNodeId, state);
+  if (await shouldSkipStep6NodeExecution(normalizedNodeId, state)) {
+    await setNodeStatus(normalizedNodeId, 'skipped');
+    await addLog('步骤 6：已按设置跳过。', 'warn', { nodeId: normalizedNodeId });
+    return;
+  }
   const authChainClaim = await acquireTopLevelAuthChainExecutionForNode(normalizedNodeId, state);
   if (authChainClaim.joined) {
     return;

@@ -428,6 +428,7 @@ const inputAutoSkipFailures = document.getElementById('input-auto-skip-failures'
 const inputAutoRunRetryNonFreeTrial = document.getElementById('input-auto-run-retry-non-free-trial');
 const inputAutoRunRetryPaypalCallback = document.getElementById('input-auto-run-retry-paypal-callback');
 const inputAutoSkipFailuresThreadIntervalMinutes = document.getElementById('input-auto-skip-failures-thread-interval-minutes');
+const inputStep6Enabled = document.getElementById('input-step6-enabled');
 const inputStep6CookieCleanupEnabled = document.getElementById('input-step6-cookie-cleanup-enabled');
 const inputAutoDelayEnabled = document.getElementById('input-auto-delay-enabled');
 const inputAutoDelayMinutes = document.getElementById('input-auto-delay-minutes');
@@ -4457,6 +4458,9 @@ function collectSettingsPayload() {
     autoRunRetryNonFreeTrial: Boolean(inputAutoRunRetryNonFreeTrial?.checked),
     autoRunRetryPaypalCallback: Boolean(inputAutoRunRetryPaypalCallback?.checked),
     autoRunFallbackThreadIntervalMinutes: normalizeAutoRunThreadIntervalMinutes(inputAutoSkipFailuresThreadIntervalMinutes.value),
+    step6Enabled: typeof inputStep6Enabled !== 'undefined' && inputStep6Enabled
+      ? Boolean(inputStep6Enabled.checked)
+      : true,
     step6CookieCleanupEnabled: typeof inputStep6CookieCleanupEnabled !== 'undefined' && inputStep6CookieCleanupEnabled
       ? Boolean(inputStep6CookieCleanupEnabled.checked)
       : false,
@@ -10209,6 +10213,9 @@ function applySettingsState(state) {
     inputAutoRunRetryPaypalCallback.checked = Boolean(state?.autoRunRetryPaypalCallback);
   }
   inputAutoSkipFailuresThreadIntervalMinutes.value = String(normalizeAutoRunThreadIntervalMinutes(state?.autoRunFallbackThreadIntervalMinutes));
+  if (typeof inputStep6Enabled !== 'undefined' && inputStep6Enabled) {
+    inputStep6Enabled.checked = state?.step6Enabled !== false;
+  }
   if (typeof inputStep6CookieCleanupEnabled !== 'undefined' && inputStep6CookieCleanupEnabled) {
     inputStep6CookieCleanupEnabled.checked = Boolean(state?.step6CookieCleanupEnabled);
   }
@@ -15232,6 +15239,11 @@ inputAutoDelayEnabled.addEventListener('change', () => {
   saveSettings({ silent: true }).catch(() => { });
 });
 
+inputStep6Enabled?.addEventListener('change', () => {
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => { });
+});
+
 inputStep6CookieCleanupEnabled?.addEventListener('change', () => {
   markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => { });
@@ -16831,6 +16843,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.payload.autoRunDelayEnabled !== undefined) {
         inputAutoDelayEnabled.checked = Boolean(message.payload.autoRunDelayEnabled);
         updateAutoDelayInputState();
+      }
+      if (
+        message.payload.step6Enabled !== undefined
+        && typeof inputStep6Enabled !== 'undefined'
+        && inputStep6Enabled
+      ) {
+        inputStep6Enabled.checked = message.payload.step6Enabled !== false;
       }
       if (
         message.payload.step6CookieCleanupEnabled !== undefined
