@@ -10,6 +10,7 @@
   }
 })(typeof self !== 'undefined' ? self : globalThis, function createMailProviderUtils() {
   const HOTMAIL_PROVIDER = 'hotmail-api';
+  const LUCKMAIL_PROVIDER = 'luckmail-api';
   const GMAIL_PROVIDER = 'gmail';
   const NETEASE_LIST_PATH = '/js6/main.jsp?df=mail163_letter#module=mbox.ListModule%7C%7B%22fid%22%3A1%2C%22order%22%3A%22date%22%2C%22desc%22%3Atrue%7D';
   const ICLOUD_TARGET_MAILBOX_TYPE_INBOX = 'icloud-inbox';
@@ -26,6 +27,7 @@
     const normalized = String(value || '').trim().toLowerCase();
     switch (normalized) {
       case HOTMAIL_PROVIDER:
+      case LUCKMAIL_PROVIDER:
       case '163':
       case '163-vip':
       case '126':
@@ -76,6 +78,9 @@
     if (provider === HOTMAIL_PROVIDER) {
       return { provider: HOTMAIL_PROVIDER, label: 'Hotmail（微软 Graph）' };
     }
+    if (provider === LUCKMAIL_PROVIDER) {
+      return { provider: LUCKMAIL_PROVIDER, label: 'LuckMail（API 购邮）' };
+    }
     if (provider === '163') {
       return {
         source: 'mail-163',
@@ -121,6 +126,7 @@
   return {
     GMAIL_PROVIDER,
     HOTMAIL_PROVIDER,
+    LUCKMAIL_PROVIDER,
     getIcloudForwardMailConfig,
     getIcloudForwardMailProviderOptions,
     getMailProviderConfig,

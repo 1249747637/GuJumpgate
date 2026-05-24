@@ -3240,6 +3240,9 @@ function normalizePersistentSettingValue(key, value) {
         if (normalizedMailProvider === CLOUD_MAIL_PROVIDER) {
           return CLOUD_MAIL_PROVIDER;
         }
+        if (normalizedMailProvider === LUCKMAIL_PROVIDER) {
+          return LUCKMAIL_PROVIDER;
+        }
         return HOTMAIL_PROVIDER;
       }
     case 'mail2925Mode':

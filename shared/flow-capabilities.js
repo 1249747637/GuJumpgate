@@ -36,6 +36,17 @@
       supportsOauthTimeoutBudget: true,
       stepDefinitionMode: 'openai-dynamic',
     }),
+    codex: Object.freeze({
+      ...DEFAULT_FLOW_CAPABILITIES,
+      supportsPhoneSignup: true,
+      supportsPhoneVerificationSettings: true,
+      supportsPlusMode: true,
+      supportsContributionMode: true,
+      supportsPlatformBinding: ['local-cpa-json', LOCAL_CPA_JSON_NO_RT_PANEL_MODE, 'cpa', 'sub2api', 'codex2api'],
+      supportsLuckmail: true,
+      supportsOauthTimeoutBudget: true,
+      stepDefinitionMode: 'openai-dynamic',
+    }),
   });
 
   const DEFAULT_PANEL_CAPABILITIES = Object.freeze({
@@ -186,7 +197,7 @@
 
     function getFlowCapabilities(flowId) {
       const normalizedFlowId = normalizeFlowId(flowId, defaultFlowId);
-      const entry = flowCapabilities[normalizedFlowId] || null;
+      const entry = flowCapabilities[normalizedFlowId] || flowCapabilities[normalizeFlowId(defaultFlowId, DEFAULT_FLOW_ID)] || null;
       return {
         ...defaultFlowCapabilities,
         ...(entry || {}),

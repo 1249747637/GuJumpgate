@@ -3125,11 +3125,44 @@ function normalizeHotmailAliasEnabledValue(value) {
 
 function normalizeSupportedMailProvider(value = '') {
   const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === HOTMAIL_PROVIDER) {
+    return HOTMAIL_PROVIDER;
+  }
+  if (normalized === GMAIL_PROVIDER) {
+    return GMAIL_PROVIDER;
+  }
+  if (normalized === ICLOUD_PROVIDER) {
+    return ICLOUD_PROVIDER;
+  }
   if (normalized === CLOUDFLARE_TEMP_EMAIL_PROVIDER) {
     return CLOUDFLARE_TEMP_EMAIL_PROVIDER;
   }
   if (normalized === CLOUD_MAIL_PROVIDER) {
     return CLOUD_MAIL_PROVIDER;
+  }
+  if (normalized === LUCKMAIL_PROVIDER) {
+    return LUCKMAIL_PROVIDER;
+  }
+  if (normalized === 'qq') {
+    return 'qq';
+  }
+  if (normalized === '163') {
+    return '163';
+  }
+  if (normalized === '163-vip') {
+    return '163-vip';
+  }
+  if (normalized === '126') {
+    return '126';
+  }
+  if (normalized === 'inbucket') {
+    return 'inbucket';
+  }
+  if (normalized === '2925') {
+    return '2925';
+  }
+  if (normalized === 'custom') {
+    return 'custom';
   }
   return HOTMAIL_PROVIDER;
 }
@@ -11387,37 +11420,13 @@ function updateMailProviderUI() {
   const icloudHostPreferenceValue = typeof selectIcloudHostPreference !== 'undefined'
     ? selectIcloudHostPreference?.value
     : latestState?.icloudHostPreference;
-  const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
-    ? resolveCurrentSidepanelCapabilities({
-      panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
-      state: latestState || {},
-    })
-    : null;
-  const canShowLuckmail = capabilityState
-    ? Boolean(capabilityState.canShowLuckmail)
-    : true;
-  const mailProviderOptions = Array.from(selectMailProvider?.options || []);
-  mailProviderOptions.forEach((option) => {
-    if (!option) {
-      return;
-    }
-    if (String(option.value || '').trim().toLowerCase() === 'luckmail-api') {
-      option.hidden = !canShowLuckmail;
-    }
-  });
-  if (!canShowLuckmail && String(selectMailProvider?.value || '').trim().toLowerCase() === 'luckmail-api') {
-    const fallbackOption = mailProviderOptions.find((option) => option && !option.hidden);
-    if (fallbackOption) {
-      selectMailProvider.value = String(fallbackOption.value || '').trim();
-    }
-  }
   const use2925 = selectMailProvider.value === '2925';
   const useGmail = selectMailProvider.value === GMAIL_PROVIDER;
   const useMail2925 = selectMailProvider.value === '2925';
   const useMail2925AccountPool = useMail2925 && Boolean(inputMail2925UseAccountPool?.checked);
   const mail2925Mode = getSelectedMail2925Mode();
   const useHotmail = selectMailProvider.value === 'hotmail-api';
-  const useLuckmail = canShowLuckmail && isLuckmailProvider();
+  const useLuckmail = isLuckmailProvider();
   const useCustomEmail = isCustomMailProvider();
   const useCloudflareTempEmailProvider = selectMailProvider.value === 'cloudflare-temp-email';
   const useCloudMailProvider = selectMailProvider.value === 'cloudmail';
@@ -16462,6 +16471,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           selectAccountAccessStrategy.value = getAccountAccessStrategyUiValueForState(latestState);
         }
         updatePanelModeUI();
+      }
+      if (message.payload.mailProvider !== undefined && selectMailProvider) {
+        selectMailProvider.value = normalizeSupportedMailProvider(message.payload.mailProvider);
+        updateMailProviderUI();
       }
       if (message.payload.plusAccountAccessStrategy !== undefined && selectAccountAccessStrategy) {
         selectAccountAccessStrategy.value = getAccountAccessStrategyUiValueForState(latestState);
