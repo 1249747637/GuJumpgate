@@ -115,6 +115,20 @@ test('sidepanel passes PayPal hosted split setting into workflow rebuilds', () =
     sidepanel,
     /syncStepDefinitionsForMode\(stepDefinitionState\.plusModeEnabled,[\s\S]*paypalHostedSplitStepsEnabled:\s*Boolean\(state\?\.paypalHostedSplitStepsEnabled\)/
   );
+  assert.match(
+    sidepanel,
+    /selectAccountAccessStrategy\?\.addEventListener\('change'[\s\S]*paypalHostedSplitStepsEnabled:\s*Boolean\(latestState\?\.paypalHostedSplitStepsEnabled\)/
+  );
+});
+
+test('sidepanel prevents re-entrant workflow rebuilds while switching settings', () => {
+  const sidepanel = readRepoFile('sidepanel', 'sidepanel.js');
+
+  assert.match(sidepanel, /let stepDefinitionSyncInProgress = false;/);
+  assert.match(
+    sidepanel,
+    /function syncStepDefinitionsForMode[\s\S]*if \(stepDefinitionSyncInProgress\) \{[\s\S]*return;[\s\S]*stepDefinitionSyncInProgress = true;[\s\S]*finally \{[\s\S]*stepDefinitionSyncInProgress = false;/
+  );
 });
 
 test('background uses a dynamic registry when PayPal hosted split steps are enabled', () => {

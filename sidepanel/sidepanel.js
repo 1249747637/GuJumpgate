@@ -595,6 +595,7 @@ let currentPlusPaymentMethod = DEFAULT_PLUS_PAYMENT_METHOD;
 let currentPlusAccountAccessStrategy = PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
 let currentSignupMethod = DEFAULT_SIGNUP_METHOD;
 let currentPhoneSignupReloginAfterBindEmailEnabled = DEFAULT_PHONE_SIGNUP_RELOGIN_AFTER_BIND_EMAIL_ENABLED;
+let stepDefinitionSyncInProgress = false;
 let hostedSmsPoolExpanded = false;
 let localCpaJsonAuthDirExpanded = false;
 let phoneSignupReuseUiWasLocked = false;
@@ -9767,6 +9768,11 @@ function renderStepsList() {
 }
 
 function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOrOptions = {}, maybeOptions = {}) {
+  if (stepDefinitionSyncInProgress) {
+    return;
+  }
+  stepDefinitionSyncInProgress = true;
+  try {
   const defaultFlowId = typeof DEFAULT_ACTIVE_FLOW_ID !== 'undefined' ? DEFAULT_ACTIVE_FLOW_ID : 'openai';
   const nextPlusModeEnabled = Boolean(plusModeEnabled);
   const options = typeof plusPaymentMethodOrOptions === 'string'
@@ -9855,6 +9861,9 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     phoneSignupReloginAfterBindEmailEnabled: nextPhoneSignupReloginAfterBindEmailEnabled,
   });
   renderStepsList();
+  } finally {
+    stepDefinitionSyncInProgress = false;
+  }
 }
 
 // ============================================================
@@ -14451,6 +14460,7 @@ selectPanelMode.addEventListener('change', async () => {
       panelMode: nextPanelMode,
       plusPaymentMethod: currentPlusPaymentMethod,
       plusAccountAccessStrategy: nextExportSettings.plusAccountAccessStrategy,
+      paypalHostedSplitStepsEnabled: Boolean(latestState?.paypalHostedSplitStepsEnabled),
       signupMethod: currentSignupMethod,
       phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
     });
@@ -14501,6 +14511,7 @@ selectAccountAccessStrategy?.addEventListener('change', async () => {
       panelMode: nextExportSettings.panelMode,
       plusPaymentMethod: currentPlusPaymentMethod,
       plusAccountAccessStrategy: nextExportSettings.plusAccountAccessStrategy,
+      paypalHostedSplitStepsEnabled: Boolean(latestState?.paypalHostedSplitStepsEnabled),
       signupMethod: currentSignupMethod,
       phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
     });
