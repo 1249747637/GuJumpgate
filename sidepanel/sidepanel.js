@@ -912,6 +912,9 @@ function getStepDefinitionsForMode(plusModeEnabled = false, options = {}) {
     signupMethod: normalizeSignupMethod(rawSignupMethod),
     phoneSignupReloginAfterBindEmailEnabled,
   };
+  if (typeof options !== 'string' && options?.paypalHostedSplitStepsEnabled !== undefined) {
+    requestOptions.paypalHostedSplitStepsEnabled = Boolean(options.paypalHostedSplitStepsEnabled);
+  }
   const normalizedAccountAccessStrategy = typeof normalizePlusAccountAccessStrategy === 'function'
     ? normalizePlusAccountAccessStrategy(rawAccountAccessStrategy)
     : rawAccountAccessStrategy;
@@ -958,6 +961,9 @@ function getWorkflowNodesForMode(plusModeEnabled = false, options = {}) {
     signupMethod: normalizeSignupMethod(rawSignupMethod),
     phoneSignupReloginAfterBindEmailEnabled,
   };
+  if (typeof options !== 'string' && options?.paypalHostedSplitStepsEnabled !== undefined) {
+    requestOptions.paypalHostedSplitStepsEnabled = Boolean(options.paypalHostedSplitStepsEnabled);
+  }
   const normalizedAccountAccessStrategy = typeof normalizePlusAccountAccessStrategy === 'function'
     ? normalizePlusAccountAccessStrategy(rawAccountAccessStrategy)
     : rawAccountAccessStrategy;
@@ -1033,6 +1039,9 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
   const phoneSignupReloginAfterBindEmailEnabled = typeof options === 'string'
     ? currentPhoneSignupReloginAfterBindEmailEnabled
     : Boolean(options.phoneSignupReloginAfterBindEmailEnabled ?? currentPhoneSignupReloginAfterBindEmailEnabled);
+  const paypalHostedSplitStepsEnabled = typeof options === 'string'
+    ? Boolean(latestState?.paypalHostedSplitStepsEnabled)
+    : Boolean(options.paypalHostedSplitStepsEnabled ?? latestState?.paypalHostedSplitStepsEnabled);
   const normalizeAccountAccessStrategySafe = typeof normalizePlusAccountAccessStrategy === 'function'
     ? normalizePlusAccountAccessStrategy
     : ((value = '') => {
@@ -1051,6 +1060,7 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
     panelMode: options?.panelMode,
     plusPaymentMethod: currentPlusPaymentMethod,
     plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
+    paypalHostedSplitStepsEnabled,
     signupMethod: currentSignupMethod,
     phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
   });
@@ -1060,6 +1070,7 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
       panelMode: options?.panelMode,
       plusPaymentMethod: currentPlusPaymentMethod,
       plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
+      paypalHostedSplitStepsEnabled,
       signupMethod: currentSignupMethod,
       phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
     })
@@ -9865,6 +9876,7 @@ function applySettingsState(state) {
       panelMode: state?.panelMode,
       plusPaymentMethod: state?.plusPaymentMethod,
       plusAccountAccessStrategy: state?.plusAccountAccessStrategy,
+      paypalHostedSplitStepsEnabled: Boolean(state?.paypalHostedSplitStepsEnabled),
       signupMethod: stepDefinitionState.signupMethod,
       phoneSignupReloginAfterBindEmailEnabled: Boolean(state?.phoneSignupReloginAfterBindEmailEnabled),
     });

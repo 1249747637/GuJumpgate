@@ -99,3 +99,29 @@ test('sidepanel exposes and persists optional PayPal hosted split steps setting'
   assert.match(background, /case 'paypalHostedSplitStepsEnabled':/);
   assert.match(background, /return Boolean\(value\);/);
 });
+
+test('sidepanel passes PayPal hosted split setting into workflow rebuilds', () => {
+  const sidepanel = readRepoFile('sidepanel', 'sidepanel.js');
+
+  assert.match(
+    sidepanel,
+    /stepDefinitions = getStepDefinitionsForMode\(currentPlusModeEnabled,[\s\S]*paypalHostedSplitStepsEnabled:\s*nextPayPalHostedSplitStepsEnabled/
+  );
+  assert.match(
+    sidepanel,
+    /getWorkflowNodesForMode\(currentPlusModeEnabled,[\s\S]*paypalHostedSplitStepsEnabled:\s*nextPayPalHostedSplitStepsEnabled/
+  );
+  assert.match(
+    sidepanel,
+    /syncStepDefinitionsForMode\(stepDefinitionState\.plusModeEnabled,[\s\S]*paypalHostedSplitStepsEnabled:\s*Boolean\(state\?\.paypalHostedSplitStepsEnabled\)/
+  );
+});
+
+test('background uses a dynamic registry when PayPal hosted split steps are enabled', () => {
+  const background = readRepoFile('background.js');
+
+  assert.match(
+    background,
+    /if \(state\?\.paypalHostedSplitStepsEnabled[\s\S]*return buildStepRegistry\(getStepDefinitionsForState\(state\)\);/
+  );
+});

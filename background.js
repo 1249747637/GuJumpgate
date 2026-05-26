@@ -14281,6 +14281,9 @@ function getStepRegistryForState(state = {}) {
   if (activeFlowId !== DEFAULT_ACTIVE_FLOW_ID) {
     throw new Error(`当前尚未注册 flow=${activeFlowId} 的步骤执行器。`);
   }
+  if (state?.paypalHostedSplitStepsEnabled) {
+    return buildStepRegistry(getStepDefinitionsForState(state));
+  }
   if (getPanelMode(state) === 'local-cpa-json-no-rt') {
     return localCpaJsonNoRtStepRegistry;
   }
