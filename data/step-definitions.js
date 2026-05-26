@@ -6,6 +6,12 @@
   const PLUS_PAYMENT_METHOD_GOPAY = 'gopay';
   const PLUS_PAYMENT_METHOD_GPC_HELPER = 'gpc-helper';
   const PLUS_PAYMENT_STEP_KEY = 'paypal-approve';
+  const PAYPAL_HOSTED_SPLIT_STEP_DEFINITIONS = [
+    { id: 7, order: 70, key: 'paypal-hosted-email', title: '无卡直绑填写 PayPal 邮箱', sourceId: 'paypal-flow', driverId: 'content/paypal-flow', command: 'paypal-hosted-email' },
+    { id: 8, order: 80, key: 'paypal-hosted-card', title: '无卡直绑填写 PayPal 资料', sourceId: 'paypal-flow', driverId: 'content/paypal-flow', command: 'paypal-hosted-card' },
+    { id: 9, order: 90, key: 'paypal-hosted-create-account', title: '无卡直绑确认创建 PayPal', sourceId: 'paypal-flow', driverId: 'content/paypal-flow', command: 'paypal-hosted-create-account' },
+    { id: 10, order: 100, key: 'paypal-hosted-review', title: '无卡直绑确认授权', sourceId: 'paypal-flow', driverId: 'content/paypal-flow', command: 'paypal-hosted-review' },
+  ];
   const LOCAL_CPA_JSON_NO_RT_PANEL_MODE = 'local-cpa-json-no-rt';
   const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
   const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
@@ -221,6 +227,26 @@
     ];
   }
 
+  function shouldUsePayPalHostedSplitSteps(options = {}) {
+    return Boolean(options?.paypalHostedSplitStepsEnabled)
+      && normalizePlusAccountAccessStrategy(options?.plusAccountAccessStrategy) === PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
+  }
+
+  function createPayPalHostedSplitSteps(prefixSteps, startId, startOrder, signupMethod = SIGNUP_METHOD_EMAIL, options = {}) {
+    const shiftedHostedSteps = PAYPAL_HOSTED_SPLIT_STEP_DEFINITIONS.map((step, index) => ({
+      ...step,
+      id: startId + index,
+      order: startOrder + (index * 10),
+    }));
+    const tailStartId = startId + shiftedHostedSteps.length;
+    const tailStartOrder = startOrder + (shiftedHostedSteps.length * 10);
+    return [
+      ...prefixSteps,
+      ...shiftedHostedSteps,
+      ...createHostedCheckoutAuthTail(tailStartId, tailStartOrder, signupMethod, options),
+    ];
+  }
+
   const NORMAL_STEP_DEFINITIONS = createOpenAiSteps(NORMAL_PREFIX_STEP_DEFINITIONS, 11, 110, SIGNUP_METHOD_EMAIL);
   const NORMAL_PHONE_STEP_DEFINITIONS = createOpenAiSteps(NORMAL_PREFIX_STEP_DEFINITIONS, 11, 110, SIGNUP_METHOD_PHONE);
   const NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = createOpenAiSteps(NORMAL_PREFIX_STEP_DEFINITIONS, 11, 110, SIGNUP_METHOD_PHONE, { phoneSignupReloginAfterBindEmailEnabled: true });
@@ -394,6 +420,15 @@
       plusModeEnabled: true,
       plusPaymentMethod: paymentMethod,
     })) {
+      if (shouldUsePayPalHostedSplitSteps(options)) {
+        return createPayPalHostedSplitSteps(
+          PLUS_PAYPAL_HOSTED_CHECKOUT_PREFIX_STEP_DEFINITIONS,
+          7,
+          70,
+          signupMethod,
+          options
+        );
+      }
       if (signupMethod === SIGNUP_METHOD_PHONE) {
         return reloginAfterBindEmail
           ? PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS
@@ -452,6 +487,7 @@
           ...NORMAL_PHONE_STEP_DEFINITIONS,
           ...NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
           ...PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS,
+          ...createPayPalHostedSplitSteps(PLUS_PAYPAL_HOSTED_CHECKOUT_PREFIX_STEP_DEFINITIONS, 7, 70, SIGNUP_METHOD_EMAIL),
           ...PLUS_PAYPAL_HOSTED_CHECKOUT_SUB2API_SESSION_STEP_DEFINITIONS,
           ...PLUS_PAYPAL_HOSTED_CHECKOUT_CPA_SESSION_STEP_DEFINITIONS,
           ...PLUS_PAYPAL_HOSTED_CHECKOUT_PREFIX_STEP_DEFINITIONS,

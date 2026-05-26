@@ -195,6 +195,8 @@ const btnGpcCardKeyPurchase = document.getElementById('btn-gpc-card-key-purchase
 const plusPaymentMethodCaption = document.getElementById('plus-payment-method-caption');
 const rowPlusHostedCheckoutOauthDelay = document.getElementById('row-plus-hosted-checkout-oauth-delay');
 const inputPlusHostedCheckoutOauthDelaySeconds = document.getElementById('input-plus-hosted-checkout-oauth-delay-seconds');
+const rowPayPalHostedSplitSteps = document.getElementById('row-paypal-hosted-split-steps');
+const inputPayPalHostedSplitStepsEnabled = document.getElementById('input-paypal-hosted-split-steps-enabled');
 const rowPlusCheckoutConversionProxy = document.getElementById('row-plus-checkout-conversion-proxy');
 const inputPlusCheckoutConversionProxy = document.getElementById('input-plus-checkout-conversion-proxy');
 const rowPlusCheckoutConversionProxyTest = document.getElementById('row-plus-checkout-conversion-proxy-test');
@@ -4474,6 +4476,9 @@ function collectSettingsPayload() {
     plusHostedCheckoutOauthDelaySeconds: typeof inputPlusHostedCheckoutOauthDelaySeconds !== 'undefined' && inputPlusHostedCheckoutOauthDelaySeconds
       ? normalizePlusHostedCheckoutOauthDelaySeconds(inputPlusHostedCheckoutOauthDelaySeconds.value)
       : 0,
+    paypalHostedSplitStepsEnabled: typeof inputPayPalHostedSplitStepsEnabled !== 'undefined' && inputPayPalHostedSplitStepsEnabled
+      ? Boolean(inputPayPalHostedSplitStepsEnabled.checked)
+      : false,
     plusCheckoutCloudConversionEnabled: typeof inputPlusCheckoutCloudConversionEnabled !== 'undefined' && inputPlusCheckoutCloudConversionEnabled
       ? Boolean(inputPlusCheckoutCloudConversionEnabled.checked)
       : false,
@@ -8906,6 +8911,7 @@ function updatePlusModeUI() {
   });
   [
     typeof rowPlusHostedCheckoutOauthDelay !== 'undefined' ? rowPlusHostedCheckoutOauthDelay : null,
+    typeof rowPayPalHostedSplitSteps !== 'undefined' ? rowPayPalHostedSplitSteps : null,
     typeof rowPlusCheckoutConversionProxy !== 'undefined' ? rowPlusCheckoutConversionProxy : null,
     typeof rowPlusCheckoutConversionProxyTest !== 'undefined' ? rowPlusCheckoutConversionProxyTest : null,
     typeof rowHostedCheckoutVerificationUrl !== 'undefined' ? rowHostedCheckoutVerificationUrl : null,
@@ -9792,6 +9798,14 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
   const currentlyUsingNoRtWorkflow = (typeof workflowNodes !== 'undefined' ? workflowNodes : [])
     .some((node) => String(node?.nodeId || '').trim() === 'local-cpa-json-export');
   const noRtWorkflowModeChanged = useNoRtWorkflow !== currentlyUsingNoRtWorkflow;
+  const nextPayPalHostedSplitStepsEnabled = Boolean(
+    options.paypalHostedSplitStepsEnabled
+      ?? (typeof inputPayPalHostedSplitStepsEnabled !== 'undefined' && inputPayPalHostedSplitStepsEnabled
+        ? inputPayPalHostedSplitStepsEnabled.checked
+        : latestState?.paypalHostedSplitStepsEnabled)
+  );
+  const currentPayPalHostedSplitStepsEnabled = (typeof workflowNodes !== 'undefined' ? workflowNodes : [])
+    .some((node) => String(node?.nodeId || '').trim() === 'paypal-hosted-email');
   const nextActiveFlowId = String(
     options.activeFlowId
     || (typeof latestState !== 'undefined' ? latestState?.activeFlowId : '')
@@ -9814,6 +9828,7 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     || nextSignupMethod !== currentSignupMethod
     || nextPhoneSignupReloginAfterBindEmailEnabled !== currentPhoneSignupReloginAfterBindEmailEnabled
     || noRtWorkflowModeChanged
+    || nextPayPalHostedSplitStepsEnabled !== currentPayPalHostedSplitStepsEnabled
     || paymentTitleChanged;
   if (!shouldRender) {
     return;
@@ -9824,6 +9839,7 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     ...(useNoRtWorkflow ? { panelMode: nextPanelMode } : {}),
     plusPaymentMethod: nextPaymentMethod,
     plusAccountAccessStrategy: nextAccountAccessStrategy,
+    paypalHostedSplitStepsEnabled: nextPayPalHostedSplitStepsEnabled,
     signupMethod: nextSignupMethod,
     phoneSignupReloginAfterBindEmailEnabled: nextPhoneSignupReloginAfterBindEmailEnabled,
   });
@@ -10233,6 +10249,9 @@ function applySettingsState(state) {
     inputPlusHostedCheckoutOauthDelaySeconds.value = String(
       normalizePlusHostedCheckoutOauthDelaySeconds(state?.plusHostedCheckoutOauthDelaySeconds)
     );
+  }
+  if (typeof inputPayPalHostedSplitStepsEnabled !== 'undefined' && inputPayPalHostedSplitStepsEnabled) {
+    inputPayPalHostedSplitStepsEnabled.checked = Boolean(state?.paypalHostedSplitStepsEnabled);
   }
   if (typeof inputPlusCheckoutCloudConversionEnabled !== 'undefined' && inputPlusCheckoutCloudConversionEnabled) {
     inputPlusCheckoutCloudConversionEnabled.checked = Boolean(state?.plusCheckoutCloudConversionEnabled);
@@ -15785,6 +15804,26 @@ inputPlusHostedCheckoutOauthDelaySeconds?.addEventListener('blur', () => {
   saveSettings({ silent: true }).catch(() => { });
 });
 
+inputPayPalHostedSplitStepsEnabled?.addEventListener('change', () => {
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => { });
+  const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
+    ? resolveStepDefinitionCapabilityState(latestState, {
+      signupMethod: typeof getSelectedSignupMethod === 'function' ? getSelectedSignupMethod() : latestState?.signupMethod,
+    })
+    : {
+      plusModeEnabled: Boolean(latestState?.plusModeEnabled),
+      signupMethod: normalizeSignupMethod(latestState?.signupMethod || DEFAULT_SIGNUP_METHOD),
+      plusAccountAccessStrategy: latestState?.plusAccountAccessStrategy,
+    };
+  syncStepDefinitionsForMode(stepDefinitionState.plusModeEnabled, {
+    plusPaymentMethod: getSelectedPlusPaymentMethod(latestState),
+    plusAccountAccessStrategy: stepDefinitionState.plusAccountAccessStrategy,
+    signupMethod: stepDefinitionState.signupMethod,
+    paypalHostedSplitStepsEnabled: Boolean(inputPayPalHostedSplitStepsEnabled.checked),
+  });
+});
+
 inputPlusCheckoutConversionProxy?.addEventListener('input', () => {
   setPlusCheckoutConversionProxyTestResult('未测试');
   markSettingsDirty(true);
@@ -16760,6 +16799,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             render: true,
             signupMethod: stepDefinitionState.signupMethod,
             plusAccountAccessStrategy: stepDefinitionState.plusAccountAccessStrategy,
+            paypalHostedSplitStepsEnabled: latestState?.paypalHostedSplitStepsEnabled,
           }
         );
         updatePlusModeUI();
@@ -16893,6 +16933,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         inputPlusHostedCheckoutOauthDelaySeconds.value = String(
           normalizePlusHostedCheckoutOauthDelaySeconds(message.payload.plusHostedCheckoutOauthDelaySeconds)
         );
+      }
+      if (message.payload.paypalHostedSplitStepsEnabled !== undefined && inputPayPalHostedSplitStepsEnabled) {
+        inputPayPalHostedSplitStepsEnabled.checked = Boolean(message.payload.paypalHostedSplitStepsEnabled);
       }
       if (message.payload.plusCheckoutCloudConversionEnabled !== undefined && inputPlusCheckoutCloudConversionEnabled) {
         inputPlusCheckoutCloudConversionEnabled.checked = Boolean(message.payload.plusCheckoutCloudConversionEnabled);

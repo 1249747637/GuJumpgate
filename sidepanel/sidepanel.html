@@ -333,6 +333,19 @@
           <span class="setting-caption">检测到支付成功页后，等待多少秒再进入 OAuth；0 = 立即继续</span>
         </div>
       </div>
+      <div class="data-row" id="row-paypal-hosted-split-steps" style="display:none;">
+        <span class="data-label">无卡直绑</span>
+        <div class="data-inline">
+          <label class="toggle-switch" for="input-paypal-hosted-split-steps-enabled"
+            title="启用后第 6 步只创建并提交 OpenAI hosted checkout，后续 PayPal 邮箱、资料、创建账号、复核会作为独立步骤执行">
+            <input type="checkbox" id="input-paypal-hosted-split-steps-enabled" />
+            <span class="toggle-switch-track" aria-hidden="true">
+              <span class="toggle-switch-thumb"></span>
+            </span>
+          </label>
+          <span class="setting-caption">分段执行</span>
+        </div>
+      </div>
       <div class="data-row" id="row-plus-checkout-conversion-proxy" style="display:none;">
         <span class="data-label">支付转换代理</span>
         <input type="text" id="input-plus-checkout-conversion-proxy" class="data-input mono"

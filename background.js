@@ -752,6 +752,7 @@ function getStepDefinitionsForState(state = {}) {
       plusModeEnabled: isPlusModeState(state),
       plusPaymentMethod: normalizePlusPaymentMethod(state?.plusPaymentMethod),
       plusAccountAccessStrategy: normalizePlusAccountAccessStrategyForState(state),
+      paypalHostedSplitStepsEnabled: Boolean(state?.paypalHostedSplitStepsEnabled),
       signupMethod: getSignupMethodForStepDefinitions(state),
       phoneSignupReloginAfterBindEmailEnabled: Boolean(state?.phoneSignupReloginAfterBindEmailEnabled),
     });
@@ -990,6 +991,7 @@ const PERSISTED_SETTING_DEFAULTS = {
   plusPaymentMethod: DEFAULT_PLUS_PAYMENT_METHOD,
   plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH,
   plusHostedCheckoutOauthDelaySeconds: 10,
+  paypalHostedSplitStepsEnabled: false,
   plusCheckoutCloudConversionEnabled: false,
   plusCheckoutCloudConversionApiUrl: BUILTIN_PLUS_CHECKOUT_CLOUD_CONVERSION_API_URL,
   plusCheckoutCloudConversionApiKey: BUILTIN_PLUS_CHECKOUT_CLOUD_CONVERSION_API_KEY,
@@ -2998,6 +3000,8 @@ function normalizePersistentSettingValue(key, value) {
         value,
         PERSISTED_SETTING_DEFAULTS.plusHostedCheckoutOauthDelaySeconds
       );
+    case 'paypalHostedSplitStepsEnabled':
+      return Boolean(value);
     case 'plusCheckoutCloudConversionEnabled':
       return Boolean(value);
     case 'plusCheckoutCloudConversionApiUrl':
@@ -10962,6 +10966,10 @@ const AUTO_RUN_BACKGROUND_COMPLETED_STEP_KEYS = new Set([
   'local-cpa-json-export',
   'plus-checkout-billing',
   'paypal-approve',
+  'paypal-hosted-email',
+  'paypal-hosted-card',
+  'paypal-hosted-create-account',
+  'paypal-hosted-review',
   'plus-checkout-return',
   'sub2api-session-import',
   'cpa-session-import',
@@ -14051,6 +14059,10 @@ const stepExecutorsByKey = {
   'paypal-approve': (state) => normalizePlusPaymentMethod(state?.plusPaymentMethod) === PLUS_PAYMENT_METHOD_GOPAY
     ? goPayApproveExecutor.executeGoPayApprove(state)
     : payPalApproveExecutor.executePayPalApprove(state),
+  'paypal-hosted-email': (state) => plusCheckoutCreateExecutor.executePayPalHostedEmail(state),
+  'paypal-hosted-card': (state) => plusCheckoutCreateExecutor.executePayPalHostedCard(state),
+  'paypal-hosted-create-account': (state) => plusCheckoutCreateExecutor.executePayPalHostedCreateAccount(state),
+  'paypal-hosted-review': (state) => plusCheckoutCreateExecutor.executePayPalHostedReview(state),
   'plus-checkout-return': (state) => plusReturnConfirmExecutor.executePlusReturnConfirm(state),
   'sub2api-session-import': (state) => sub2ApiSessionImportExecutor.executeSub2ApiSessionImport(state),
   'cpa-session-import': (state) => cpaSessionImportExecutor.executeCpaSessionImport(state),

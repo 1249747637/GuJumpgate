@@ -219,7 +219,13 @@
     },
     'content/paypal-flow': {
       sourceId: 'paypal-flow',
-      commands: ['paypal-approve'],
+      commands: [
+        'paypal-approve',
+        'paypal-hosted-email',
+        'paypal-hosted-card',
+        'paypal-hosted-create-account',
+        'paypal-hosted-review',
+      ],
     },
     'content/gopay-flow': {
       sourceId: 'gopay-flow',
